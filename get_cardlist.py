@@ -5,7 +5,7 @@ import pandas as pd
 
 class CardList:
     def __init__(self):
-        self.data = pd.DataFrame({'name': [], 'price': [], 'fullart': [], 'frame': [], 'frame_effects': [], 'border_color': []})
+        self.data = pd.DataFrame({'name': [], 'price': [], 'fullart': [], 'frame': [], 'frame_effects': [], 'border_color': [], 'collector_number': []})
 
     def add_card(self, card):
         self.data = pd.concat([self.data, pd.DataFrame([card])], ignore_index=True)
@@ -17,8 +17,8 @@ class Buylist:
     def __init__(self):
         self.data = pd.DataFrame()
 
-    def add_entry(self, name, price):
-        self.data = pd.concat([self.data, pd.DataFrame([{'Quantity': 1, 'Name': name, 'Price': float(price)}])], ignore_index=True)
+    def add_entry(self, name, price, collector_number):
+        self.data = pd.concat([self.data, pd.DataFrame([{'Quantity': 1, 'Name': name, 'CN': collector_number, 'Price': float(price)}])], ignore_index=True)
 
     def adjust_quantity(self, name, adjust: int = 1):
         self.data.loc[self.data['Name'] == name, 'Quantity'] += adjust
@@ -96,7 +96,8 @@ class ScryfallCardFetcher:
                 'fullart': card.get('full_art', False),
                 'frame': card.get('frame', ''),
                 'border_color': card.get('border_color', ''),
-                'frame_effects': frame_effects
+                'frame_effects': frame_effects,
+                'collector_number': card['collector_number']
             }
             if entry['price'] is None:
                 entry['price'] = 0
@@ -121,7 +122,7 @@ class ScryfallCardFetcher:
             cards = self.card_list.get_data()[self.card_list.get_data()['name'] == name]
             for _, card in cards.iterrows():
                 entry = self.get_tcgplayer_name(card)
-                self.buylist.add_entry(entry, card['price'])
+                self.buylist.add_entry(entry, card['price'], card['collector_number'])
 
             while self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]['Quantity'].sum() > self.copies:
                 current_prints = self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]
@@ -138,8 +139,8 @@ class ScryfallCardFetcher:
 # Example usage
 if __name__ == "__main__":
     #fetcher = ScryfallCardFetcher(set_code='tdc', max_price=1000, copies = 1, exclude_reprints = True)
-    fetcher = ScryfallCardFetcher(set_code='tdc', copies = 1, exclude_reprints = True)
+    fetcher = ScryfallCardFetcher(set_code='tdm', copies = 1)
     fetcher.fetch_cards()
     fetcher.generate_buylist()
     print(fetcher.buylist.get_data())
-    #fetcher.buylist.export_to_excel('buylist.xlsx')
+    fetcher.buylist.export_to_excel('buylist.xlsx')
