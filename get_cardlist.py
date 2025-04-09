@@ -2,6 +2,7 @@ import requests
 import time
 import certifi
 import pandas as pd
+import numpy as np
 
 class CardList:
     def __init__(self):
@@ -20,10 +21,12 @@ class Buylist:
     def add_entry(self, name, price, collector_number):
         self.data = pd.concat([self.data, pd.DataFrame([{'Quantity': 1, 'Name': name, 'CN': collector_number, 'Price': float(price)}])], ignore_index=True)
 
-    def adjust_quantity(self, name, adjust: int = 1):
-        self.data.loc[self.data['Name'] == name, 'Quantity'] += adjust
-        if self.data.loc[self.data['Name'] == name]['Quantity'].values < 1:
-            self.data.drop(self.data.loc[self.data['Name'] == name].index, inplace = True)
+    def adjust_quantity(self, name, card_num, adjust: int = 1):
+        row = (self.data['Name'] == name)&(self.data['CN'] == card_num)
+        card = self.data.loc[row]
+        card['Quantity'] += adjust
+        if card['Quantity'].values < 1:
+            self.data.drop(card.index, inplace = True)
 
     def sort_buylist(self):
         self.data = self.data.sort_values(by="Name")
@@ -33,6 +36,10 @@ class Buylist:
 
     def get_data(self):
         return self.data
+    
+    def get_totals(self):
+        print(f"Total Cards: {self.data['Quantity'].sum()} | Total Price: ${self.data['Price'].sum()}")
+        return self.data['Quantity'].sum(), self.data['Price'].sum()
 
 class ScryfallCardFetcher:
     BASE_URL = "https://api.scryfall.com/"
@@ -100,7 +107,7 @@ class ScryfallCardFetcher:
                 'collector_number': card['collector_number']
             }
             if entry['price'] is None:
-                entry['price'] = 0
+                entry['price'] = np.inf
 
             self.card_list.add_card(entry)
 
@@ -126,8 +133,9 @@ class ScryfallCardFetcher:
 
             while self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]['Quantity'].sum() > self.copies:
                 current_prints = self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]
-                to_drop = current_prints.loc[current_prints['Price'].dropna().idxmax()]['Name']
-                self.buylist.adjust_quantity(to_drop, -1)              
+                to_drop_name = current_prints.loc[current_prints['Price'].dropna().idxmax()]['Name']
+                to_drop_cn = current_prints.loc[current_prints['Price'].dropna().idxmax()]['CN']
+                self.buylist.adjust_quantity(to_drop_name, to_drop_cn, -1)              
 
             while self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]['Quantity'].sum() < self.copies:
                 to_add = cards.loc[cards['price'].dropna().idxmin()]
@@ -139,8 +147,10 @@ class ScryfallCardFetcher:
 # Example usage
 if __name__ == "__main__":
     #fetcher = ScryfallCardFetcher(set_code='tdc', max_price=1000, copies = 1, exclude_reprints = True)
-    fetcher = ScryfallCardFetcher(set_code='tdm', copies = 1)
+    fetcher = ScryfallCardFetcher(set_code='blc', copies = 1)
     fetcher.fetch_cards()
     fetcher.generate_buylist()
     print(fetcher.buylist.get_data())
-    fetcher.buylist.export_to_excel('buylist.xlsx')
+    print(fetcher.buylist.get_totals())
+    #fetcher.buylist.export_to_excel('buylist.xlsx')
+    fetcher
