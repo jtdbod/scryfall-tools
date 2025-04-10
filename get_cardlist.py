@@ -101,7 +101,7 @@ class ScryfallCardFetcher:
 
             entry = {
                 'name': card['name'],
-                'price': card['prices']['usd'],
+                'price': float(card['prices']['usd']) if card['prices']['usd'] is not None else np.inf,
                 'fullart': card.get('full_art', False),
                 'frame': card.get('frame', ''),
                 'border_color': card.get('border_color', ''),
@@ -139,7 +139,7 @@ class ScryfallCardFetcher:
                 self.buylist.adjust_quantity(to_drop, -1)              
 
             while self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]['Quantity'].sum() < self.copies:
-                to_add = cards['price'].dropna().idxmin()
+                to_add = self.buylist.get_data()['Price'].dropna().idxmin()
                 self.buylist.adjust_quantity(to_add, 1)
 
         self.buylist.sort_buylist()
@@ -151,7 +151,7 @@ class ScryfallCardFetcher:
 # Example usage
 if __name__ == "__main__":
     #fetcher = ScryfallCardFetcher(set_code='tdc', max_price=1000, copies = 1, exclude_reprints = True)
-    fetcher = ScryfallCardFetcher(set_code='tdm', copies = 2)
+    fetcher = ScryfallCardFetcher(set_code='tdm', copies = 5)
     query = fetcher.build_query()
     fetcher.fetch_cards(query)
     fetcher.generate_buylist()
