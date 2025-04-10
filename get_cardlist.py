@@ -37,7 +37,9 @@ class Buylist:
         return self.data
     
     def get_totals(self):
-        print(f"Total Cards: {self.data['Quantity'].sum()} | Total Price: ${self.data['Price'].sum()}")
+        total_cards = self.data['Quantity'].sum()
+        total_price = (self.data['Price']*self.data['Quantity']).sum()
+        print(f"Total Cards: {total_cards} | Total Price: ${total_price:.2f}")
         print(f"Cards without Prices: {self.no_prices}")
         return self.data['Quantity'].sum(), self.data['Price'].sum()
 
@@ -65,8 +67,8 @@ class ScryfallCardFetcher:
 
         return query
 
-    def fetch_cards(self):
-        search_url = f"{self.BASE_URL}cards/search?q={self.build_query()}"
+    def fetch_cards(self, query):
+        search_url = f"{self.BASE_URL}cards/search?q={query}"
         while search_url:
             for attempt in range(self.max_retries):
                 try:
@@ -128,8 +130,8 @@ class ScryfallCardFetcher:
         for name in self.card_list.get_data()['name'].unique():
             cards = self.card_list.get_data()[self.card_list.get_data()['name'] == name]
             for _, card in cards.iterrows():
-                entry = self.get_tcgplayer_name(card)
-                self.buylist.add_entry(entry, card['price'], card['collector_number'])
+                #entry = self.get_tcgplayer_name(card)
+                self.buylist.add_entry(card['name'], card['price'], card['collector_number'])
 
             while self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]['Quantity'].sum() > self.copies:
                 current_prints = self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]
@@ -137,9 +139,8 @@ class ScryfallCardFetcher:
                 self.buylist.adjust_quantity(to_drop, -1)              
 
             while self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]['Quantity'].sum() < self.copies:
-                to_add = cards.loc[cards['price'].dropna().idxmin()]
-                self.buylist.adjust_quantity(self.get_tcgplayer_name(to_add), 1)
-                print(self.get_tcgplayer_name(to_add))
+                to_add = cards['price'].dropna().idxmin()
+                self.buylist.adjust_quantity(to_add, 1)
 
         self.buylist.sort_buylist()
         # Drop cards without price
@@ -150,8 +151,9 @@ class ScryfallCardFetcher:
 # Example usage
 if __name__ == "__main__":
     #fetcher = ScryfallCardFetcher(set_code='tdc', max_price=1000, copies = 1, exclude_reprints = True)
-    fetcher = ScryfallCardFetcher(set_code='tdm', copies = 1)
-    fetcher.fetch_cards()
+    fetcher = ScryfallCardFetcher(set_code='tdm', copies = 2)
+    query = fetcher.build_query()
+    fetcher.fetch_cards(query)
     fetcher.generate_buylist()
     print(fetcher.buylist.get_data())
     print(fetcher.buylist.get_totals())
