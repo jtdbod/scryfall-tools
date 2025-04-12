@@ -19,8 +19,8 @@ class Buylist:
         self.data = pd.DataFrame()
         self.no_prices = None
 
-    def add_entry(self, name, price, collector_number):
-        self.data = pd.concat([self.data, pd.DataFrame([{'Quantity': 1, 'Name': name, 'CN': collector_number, 'Price': float(price)}])], ignore_index=True)
+    def add_entry(self, name, price, collector_number, frame, frame_effect, border_color):
+        self.data = pd.concat([self.data, pd.DataFrame([{'Quantity': 1, 'Name': name, 'CN': collector_number, 'Price': float(price), 'Frame': frame, 'Frame Effects': frame_effect, 'Border': border_color}])], ignore_index=True)
 
     def adjust_quantity(self, index, adjust: int = 1):
         self.data.at[index, 'Quantity'] += adjust
@@ -113,33 +113,33 @@ class ScryfallCardFetcher:
 
             self.card_list.add_card(entry)
 
-    def get_tcgplayer_name(self, card):
-        entry = card['name']
-        entry = entry.split(' //')[0]
-        if 'showcase' in card.get('frame_effects', []):
-            entry = f"{entry} (Showcase)"
-        if 'extendedart' in card.get('frame_effects', []):
-            entry = f"{entry} (Extended Art)"
-        if '1997' in card.get('frame'):
-            entry = f"{entry} (Retro Frame)"
-        if 'borderless' in card.get('border_color'):
-            entry = f"{entry} (Borderless)"
-        return entry
+    def convert_tcgplayer_names(self):
+        for i, row in self.buylist.data.iterrows():
+            tcgplayer_name = row['Name']
+            tcgplayer_name = tcgplayer_name.split(' //')[0]
+            if ('showcase' in row.get('Frame Effects', [])) and (('borderless' not in row.get('Border'))):
+                tcgplayer_name = f"{tcgplayer_name} (Showcase)"
+            if ('extendedart' in row.get('Frame Effects', [])) & ('showcase' not in row.get('Frame Effects', [])):
+                tcgplayer_name = f"{tcgplayer_name} (Extended Art)"
+            if '1997' in row.get('Frame'):
+                tcgplayer_name = f"{tcgplayer_name} (Retro Frame)"
+            if ('borderless' in row.get('Border')) & ('showcase' not in row.get('frame_effects', [])):
+                tcgplayer_name = f"{tcgplayer_name} (Borderless)"
+            self.buylist.data.at[i, 'Name'] = tcgplayer_name
 
     def generate_buylist(self):
         for name in self.card_list.get_data()['name'].unique():
             cards = self.card_list.get_data()[self.card_list.get_data()['name'] == name]
             for _, card in cards.iterrows():
                 #entry = self.get_tcgplayer_name(card)
-                self.buylist.add_entry(card['name'], card['price'], card['collector_number'])
+                self.buylist.add_entry(card['name'], card['price'], card['collector_number'], card['frame'], card['frame_effects'], card['border_color'])
 
             while self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]['Quantity'].sum() > self.copies:
-                current_prints = self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]
-                to_drop = current_prints['Price'].dropna().idxmax()
+                to_drop = self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]['Price'].dropna().idxmax()
                 self.buylist.adjust_quantity(to_drop, -1)              
 
             while self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]['Quantity'].sum() < self.copies:
-                to_add = self.buylist.get_data()['Price'].dropna().idxmin()
+                to_add = self.buylist.get_data()[self.buylist.get_data()['Name'].str.contains(name.split(' //')[0])]['Price'].dropna().idxmin()
                 self.buylist.adjust_quantity(to_add, 1)
 
         self.buylist.sort_buylist()
@@ -151,11 +151,12 @@ class ScryfallCardFetcher:
 # Example usage
 if __name__ == "__main__":
     #fetcher = ScryfallCardFetcher(set_code='tdc', max_price=1000, copies = 1, exclude_reprints = True)
-    fetcher = ScryfallCardFetcher(set_code='tdm', copies = 5)
+    fetcher = ScryfallCardFetcher(set_code='dsk', copies = 2)
     query = fetcher.build_query()
+    query = 's:mh3 r:r -is:reprint'
     fetcher.fetch_cards(query)
     fetcher.generate_buylist()
+    fetcher.convert_tcgplayer_names()
     print(fetcher.buylist.get_data())
     print(fetcher.buylist.get_totals())
-    #fetcher.buylist.export_to_excel('buylist.xlsx')
-    print(fetcher.buylist.get_data())
+    fetcher.buylist.export_to_excel(f"buylist.xlsx")
